@@ -77,31 +77,45 @@ function ListBoard() {
     useEffect(() => {
         const init = async () => {
             // -----------------------------
-            // ① 初回ロード
+            // ① 初回ロード・リアルタイム監視
             // -----------------------------
-            const result = await client.models.Board.list({
+            //const result = await client.models.Board.list({
+            //    authMode: 'userPool',
+            //});
+            const result = client.models.Board.observeQuery({
                 authMode: 'userPool',
+            }).subscribe({
+                next: ({ items }) => {
+                    setItems(items);
+                },
+                error: (error) => {
+                    console.error(error);
+                },
             });
-
+            return () => result.unsubscribe();
             // -----------------------------
             // ② データが0件なら作成
             // -----------------------------
-            if (result.data.length === 0) {
+            if (items.length === 0) {
                 console.log("初期データ作成");
 
                 // Person を作成
                 const person = await client.models.Person.create({
                     name: "テストユーザー",
                     email: "test@example.com",
-                } as any);
+                });
+                const personData = person.data;
 
-                if (person.data) {
-                    await client.models.Board.create({
-                        name: "テストユーザー",
-                        message: "最初の投稿",
-                        personID: person.data.id,
-                    } as any);
+                if (!personData) {
+                    throw new Error('Person create failed');
                 }
+
+                await client.models.Board.create({
+                    name: "テストユーザー",
+                    message: "最初の投稿",
+                    personID: personData!.id,
+                });
+
             }
 
             // ✅ 初回データ取得
@@ -155,7 +169,10 @@ function ListBoard() {
             <FlatList
                 data={items}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={{ paddingVertical: 10 }}
+                contentContainerStyle={{
+                    paddingVertical: 10,
+                    paddingBottom: 120, // FABのスペース確保
+                }}
                 renderItem={({ item }) => (
 
                     <Card style={{ marginBottom: 10 }}>
@@ -193,20 +210,9 @@ function ListBoard() {
                         </Card.Content>
                     </Card>
                 )}
+
             />
-            {/* 画面遷移（List → Create）ボタン */}
-            {/* FAB（右下ボタン） */}
-            <FAB
-                icon="plus"
-                style={{
-                    position: 'absolute',
-                    right: 16,
-                    bottom: 16,
-                    zIndex: 100,
-                }}
-                onPress={() => navigation.navigate('CreateBoard')}
-            />
-            {/* サインアウト */}
+            {/* サインアウトボタン */}
             <Button
                 mode="outlined"
                 onPress={async () => {
@@ -216,10 +222,25 @@ function ListBoard() {
                         console.log('sign out error:', e);
                     }
                 }}
-                style={{ marginTop: 10 }}
+                style={{
+                    marginTop: 8,
+                    marginBottom: 40,
+                }}
             >
                 サインアウト
             </Button>
+            {/* 画面遷移（List → Create）ボタン */}
+            {/* FAB（右下ボタン） */}
+            <FAB
+                icon="plus"
+                style={{
+                    position: 'absolute',
+                    right: 16,
+                    bottom: 48,
+                    zIndex: 100,
+                }}
+                onPress={() => navigation.navigate('CreateBoard')}
+            />
 
         </View>
     );
